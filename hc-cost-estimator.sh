@@ -8,11 +8,30 @@ set -euo pipefail
 #
 # Usage:
 #   HCLOUD_TOKEN=xxx ./hcloud-monthly-costs.sh [--gross]
+#   (or place HCLOUD_TOKEN in a .env file next to this script)
 #
 # Notes:
 # - Backups are estimated at 20% of a server's monthly price when enabled.
 # - Traffic overages and Object Storage are not included.
 # - Primary IPv6 are free; IPv4 are billed monthly.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="${HC_PRICE_ENV_FILE:-}"
+if [[ -z "$ENV_FILE" ]]; then
+  if [[ -f "$SCRIPT_DIR/.env" ]]; then
+    ENV_FILE="$SCRIPT_DIR/.env"
+  elif [[ -f ./.env ]]; then
+    ENV_FILE="./.env"
+  fi
+fi
+
+if [[ -n "$ENV_FILE" && -f "$ENV_FILE" ]]; then
+  # Allow bare KEY=VALUE entries to populate the environment
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+fi
 
 API="https://api.hetzner.cloud/v1"
 AUTH_HEADER="Authorization: Bearer ${HCLOUD_TOKEN:-}"
@@ -189,8 +208,8 @@ while read -r lb; do
 done < <(jq -c '.[]' <<<"$LBS_JSON")
 
 # Primary IPs (new model)
-pip_v4_count="$(jq '[ .[] | select(.type==\"ipv4\") ] | length' <<<"$PRIMARYIPS_JSON")"
-pip_v6_count="$(jq '[ .[] | select(.type==\"ipv6\") ] | length' <<<"$PRIMARYIPS_JSON")"
+pip_v4_count="$(jq '[ .[] | select(.type=="ipv4") ] | length' <<<"$PRIMARYIPS_JSON")"
+pip_v6_count="$(jq '[ .[] | select(.type=="ipv6") ] | length' <<<"$PRIMARYIPS_JSON")"
 pip_v4_price="$(price_primary_ip_monthly ipv4)"
 pip_v6_price="$(price_primary_ip_monthly ipv6)"
 primary_ips_cost="$(jq -n "($pip_v4_count * ($pip_v4_price // 0)) + ($pip_v6_count * ($pip_v6_price // 0))")"
@@ -231,4 +250,3 @@ printf "Snapshots:              %8.2f %s  (Total size: %s GB @ %s/GB)\n" \
   "$snapshots_cost" "$currency" "${snap_gb_total:-0}" "${snap_per_gb:-0}"
 printf "-------------------------------------------\n"
 printf "TOTAL:                  %8.2f %s\n\n" "$total" "$currency"
-
