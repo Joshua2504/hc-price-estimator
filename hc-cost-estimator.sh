@@ -261,6 +261,9 @@ total="$(jq -n "$servers_cost + $backups_cost + $volumes_cost + $lb_cost_sum + $
 currency="€"
 kind_label="$( [[ "$PRICE_KIND" == "gross" ]] && echo "GROSS (incl. VAT)" || echo "NET (excl. VAT)" )"
 
+# Ensure consistent number formatting for printf
+export LC_NUMERIC=C
+
 printf "\nHetzner Cloud Monthly Cost Estimate (%s)\n" "$kind_label"
 printf "===========================================\n"
 printf "Servers:                %8.2f %s\n" "$servers_cost" "$currency"
